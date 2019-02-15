@@ -1,14 +1,47 @@
 plugins {
     id 'java'
     id 'application'
+    id 'maven-publish'
 }
+
+group 'com.gitium'
+version '1.0.0'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
 
 mainClassName = 'com.gitium.core.App'
 
+jar {
+    baseName 'gitium-java'
+}
+
 dependencies {
-    testImplementation 'junit:junit:4.12'
+    implementation 'org.bouncycastle:bcprov-jdk15on:1.60'
+    implementation 'com.squareup.retrofit2:adapter-rxjava2:2.4.0'
+    implementation 'com.google.code.gson:gson:2.8.5'
+    implementation 'com.squareup.retrofit2:converter-gson:2.4.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:3.12.0'
+    implementation 'org.apache.commons:commons-lang3:3.6'
 }
 
 repositories {
     jcenter()
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+            artifactId 'gitium-java'
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            def repoDir = 'D:\\Projects\\Github\\mvn'
+            def releasesRepoUrl = "$repoDir/repository/releases"
+            def snapshotsRepoUrl = "$repoDir/repository/snapshots"
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+        }
+    }
 }
