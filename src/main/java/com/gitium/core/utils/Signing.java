@@ -6,7 +6,6 @@ import static com.gitium.core.utils.Constants.KEY_LENGTH;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import com.gitium.core.error.GitiumException;
 import com.gitium.core.model.Bundle;
@@ -19,19 +18,11 @@ public class Signing {
     private ICurl curl;
 
     public Signing() {
-        this(Optional.empty());
+        this(null);
     }
 
     public Signing(ICurl curl) {
-        this(curl != null ? Optional.of(curl) : Optional.empty());
-    }
-
-    /**
-     *
-     * @param curl
-     */
-    public Signing(Optional<ICurl> curl) {
-        this.curl = curl == null || !curl.isPresent() ? SpongeFactory.create(SpongeFactory.Mode.KERL) : curl.get();
+        this.curl = curl == null ? SpongeFactory.create(SpongeFactory.Mode.KERL) : curl;
     }
 
     /**
