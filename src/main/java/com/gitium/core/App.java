@@ -50,6 +50,9 @@ public class App {
             case "getContractList":
                 getContractList();
                 break;
+            case "lockAddresses":
+                lockAddresses();
+                break;
             default:
                 break;
             }
@@ -162,6 +165,22 @@ public class App {
         gitiumAPI
 
                 .getContractList()
+
+                .toObservable()
+
+                .blockingSubscribe(
+
+                        (result) -> {
+                            MyLog.debug(result.size() + "");
+                        },
+
+                        onError);
+    }
+
+    public static void lockAddresses() {
+        gitiumAPI
+
+                .lockAddresses(seed, 10)
 
                 .toObservable()
 

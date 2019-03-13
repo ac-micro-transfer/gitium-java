@@ -664,6 +664,36 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         return service.queryTransactions(request).map(r -> r.getList());
     }
 
+    @Override
+    public Single<List<AddressPair>> lockAddresses(String seed, int lockCount) {
+        return Single
+
+                .fromCallable(() -> generateAddresses(seed, Range.between(0, lockCount - 1)))
+
+                .map(pairs -> {
+                    for (int i = pairs.size() - 1; i >= 0; i--) {
+                        boolean hasTransactions = queryTransactions(GITIUM_ADDRESS, pairs.get(i).getAddress())
+                                .map(ts -> ts.size() > 0).blockingGet();
+                        if (!hasTransactions) {
+                            List<String> srcTrytes = prepareEmptyTransfer(seed, pairs.get(i).getAddress());
+                            service
+
+                                    .getTransactionsToApprove(new GetTransactionsToApproveRequest(depth))
+
+                                    .flatMap(approve -> attachToTangle(approve.getTrunkTransaction(),
+                                            approve.getBranchTransaction(), minWeightMagnitude, srcTrytes))
+
+                                    .flatMap(trytes -> storeAndBroadcast(trytes))
+
+                                    .blockingGet();
+                        } else {
+                            break;
+                        }
+                    }
+                    return pairs;
+                });
+    }
+
     public static class Builder {
 
         private String url;

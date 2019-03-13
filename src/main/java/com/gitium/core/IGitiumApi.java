@@ -138,4 +138,13 @@ public interface IGitiumApi {
      * @return query transactions
      */
     Single<List<QueryTransaction>> queryTransactions(String contract, String hash);
+
+    /**
+     * lock user's addresses
+     * 
+     * @param seed      user's seed
+     * @param lockCount lock size
+     * @return addresses locked
+     */
+    Single<List<AddressPair>> lockAddresses(String seed, int lockCount);
 }
