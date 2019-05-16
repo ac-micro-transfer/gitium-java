@@ -2,24 +2,27 @@ package com.gitium.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import com.gitium.core.dto.request.ExchangeRateRequest;
+import com.gitium.core.dto.request.GetAccountInfoByFirstAddressRequest;
 import com.gitium.core.dto.request.GetTransactionsToApproveRequest;
 import com.gitium.core.dto.request.GitiumCommandRequest;
 import com.gitium.core.dto.request.QueryTransactionsRequest;
 import com.gitium.core.dto.request.StoreContractTransactionsRequest;
+import com.gitium.core.dto.response.GetAccountAddressBalanceResponse;
+import com.gitium.core.dto.response.GetAccountInfoByFirstAddressResponse;
 import com.gitium.core.dto.response.GetNodeInfoResponse;
 import com.gitium.core.dto.response.GetTransactionsToApproveResponse;
 import com.gitium.core.error.GitiumException;
+import com.gitium.core.model.AddressInfo;
+import com.gitium.core.model.AddressPairWrapper;
 import com.gitium.core.model.Balance;
 import com.gitium.core.model.BalanceWrapper;
 import com.gitium.core.model.Bundle;
 import com.gitium.core.model.GitiumContract;
 import com.gitium.core.model.GitiumTransaction;
-import com.gitium.core.model.GitiumTransactionDetail;
 import com.gitium.core.model.QueryTransaction;
 import com.gitium.core.model.Transaction;
 import com.gitium.core.model.Transfer;
@@ -33,7 +36,6 @@ import com.gitium.core.utils.GitiumAPIUtils;
 import com.gitium.core.utils.InputValidator;
 import com.gitium.core.utils.Mapper;
 
-import org.apache.commons.lang3.Range;
 import org.apache.commons.lang3.StringUtils;
 
 import io.reactivex.Single;
@@ -47,12 +49,10 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
     private int minWeightMagnitude;
     private ICurl customCurl;
 
-    private Map<String, Integer> seedMap = new HashMap<>();
-
     protected List<GitiumContract> mContracts;
 
     protected GitiumAPI(Builder builder) {
-        super(builder.url, builder.isDebug());
+        super(builder.centralizationUrl, builder.url, builder.isDebug());
         addressDelegate = builder.addressDelegate;
         security = builder.getSecurity();
         depth = builder.getDepth();
@@ -75,126 +75,6 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
             addressDelegate.setAddress(seed, address, index);
         }
         return new AddressPair(address, index);
-    }
-
-    private List<AddressPair> generateAddresses(String seed, Range<Integer> range) throws Exception {
-        List<AddressPair> addresses = new ArrayList<>();
-        for (int i = range.getMinimum(); i <= range.getMaximum(); i++) {
-            addresses.add(generateAddress(seed, i));
-        }
-        return addresses;
-    }
-
-    private Single<Integer> updateAddresses(final String seed, final Range<Integer> range) {
-        if (range.getMaximum() - range.getMinimum() <= 5) {
-            return Single
-
-                    .fromCallable(() -> {
-                        return generateAddresses(seed, range);
-                    })
-
-                    .flatMap((addressPairs) -> {
-
-                        return getGitiumTransactions(addressPairs)
-
-                                .map((transactions) -> {
-                                    if (transactions.size() == 0) {
-                                        return addressPairs.get(0).getIndex();
-                                    } else {
-                                        for (int i = addressPairs.size() - 1; i >= 0; i--) {
-                                            AddressPair pair = addressPairs.get(i);
-                                            for (GitiumTransaction transaction : transactions) {
-                                                for (GitiumTransactionDetail detail : transaction.getList()) {
-                                                    if (pair.getAddress().equals(detail.getAddress())) {
-                                                        int index = pair.getIndex();
-                                                        seedMap.put(seed, index);
-                                                        return index + 1;
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        return addressPairs.get(0).getIndex();
-                                    }
-                                });
-                    });
-        } else {
-            final int min = range.getMinimum();
-            final int max = range.getMaximum();
-            final int middle = min + (max - min) / 2;
-
-            return Single
-
-                    .fromCallable(() -> {
-                        List<AddressPair> list = new ArrayList<>();
-                        list.add(generateAddress(seed, min));
-                        list.add(generateAddress(seed, middle));
-                        list.add(generateAddress(seed, max));
-                        return list;
-                    })
-
-                    .flatMap((addressPairs) -> {
-                        return getGitiumTransactions(addressPairs)
-
-                                .flatMap((transactions) -> {
-                                    if (transactions.size() == 0) {
-                                        return Single.just(addressPairs.get(0).getIndex());
-                                    } else {
-                                        for (int i = addressPairs.size() - 1; i >= 0; i--) {
-                                            AddressPair pair = addressPairs.get(i);
-                                            for (GitiumTransaction transaction : transactions) {
-                                                for (GitiumTransactionDetail detail : transaction.getList()) {
-                                                    if (pair.getAddress().equals(detail.getAddress())) {
-                                                        int index = pair.getIndex();
-                                                        seedMap.put(seed, index);
-                                                        switch (i) {
-                                                        case 2:
-                                                            if (max - min == 100) {
-                                                                return updateAddresses(seed,
-                                                                        Range.between(max + 1, max + 101));
-                                                            } else {
-                                                                return Single.just(max + 1);
-                                                            }
-                                                        case 1:
-                                                            return updateAddresses(seed,
-                                                                    Range.between(middle + 1, max - 1));
-                                                        default:
-                                                            return updateAddresses(seed,
-                                                                    Range.between(min + 1, middle - 1));
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        return Single.just(addressPairs.get(0).getIndex());
-                                    }
-                                });
-                    });
-        }
-    }
-
-    private Single<AddressPair> getNextAvailableAddress(final String seed) {
-        int lastUsedIndex = -1;
-        if (seedMap.containsKey(seed)) {
-            lastUsedIndex = seedMap.get(seed);
-        }
-
-        return updateAddresses(seed, Range.between(lastUsedIndex + 1, lastUsedIndex + 101))
-
-                .map((index) -> {
-                    return generateAddress(seed, index);
-                });
-    }
-
-    private Single<List<AddressPair>> generateNewAddresses(final String seed) {
-
-        return getNextAvailableAddress(seed).map((addressPair) -> {
-            int index = addressPair.getIndex();
-            List<AddressPair> list = new ArrayList<>();
-            for (int i = 0; i <= index; i++) {
-                list.add(generateAddress(seed, i));
-            }
-            return list;
-        });
     }
 
     private List<String> prepareTransfers(final String seed, List<Transfer> transfers, final String remainderAddress,
@@ -304,67 +184,6 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         throw GitiumException.notEnoughBalance();
     }
 
-    @SuppressWarnings("unchecked")
-    private Single<List<BalanceWrapper>> getBalances(List<AddressPair> addressPairs, List<String> contractAddresses) {
-        List<List<AddressPair>> addressPairsList = Mapper.splitAddressPairs(addressPairs);
-        List<Single<List<BalanceWrapper>>> singles = new ArrayList<>();
-        boolean hasGitium = false;
-        List<String> others = new ArrayList<>();
-
-        for (String contractAddress : contractAddresses) {
-            if (contractAddress.equals(GITIUM_ADDRESS)) {
-                hasGitium = true;
-            } else {
-                others.add(contractAddress);
-            }
-        }
-
-        final boolean _hasGitium = hasGitium;
-
-        for (List<AddressPair> pairs : addressPairsList) {
-
-            Single<List<BalanceWrapper>> single = Single
-
-                    .fromCallable(() -> {
-                        List<BalanceWrapper> wrappers = new ArrayList<>();
-
-                        if (_hasGitium) {
-                            BalanceWrapper result = getGitiumBalances(pairs).blockingGet();
-                            wrappers.add(result);
-                        }
-                        if (!others.isEmpty()) {
-                            List<BalanceWrapper> result = getContractBalances(others, pairs).blockingGet();
-                            wrappers.addAll(result);
-                        }
-                        return wrappers;
-                    });
-
-            singles.add(single.subscribeOn(Schedulers.io()));
-        }
-
-        return Single.zip(singles, (array) -> {
-
-            List<BalanceWrapper> dest = new ArrayList<>();
-
-            for (int i = 0; i < contractAddresses.size(); i++) {
-                BalanceWrapper destWrapper = new BalanceWrapper(contractAddresses.get(i));
-
-                for (Object obj : array) {
-                    List<BalanceWrapper> wrappers = (List<BalanceWrapper>) obj;
-                    BalanceWrapper wrapper = wrappers.get(i);
-                    for (Balance balance : wrapper.getBalances()) {
-                        destWrapper.addBalance(balance);
-                    }
-                }
-
-                dest.add(destWrapper);
-            }
-
-            return dest;
-
-        });
-    }
-
     private List<String> prepareEmptyTransfer(String seed, String nextAvailableAddress) throws GitiumException {
         List<Transfer> transfers = new ArrayList<>();
         transfers.add(new Transfer(nextAvailableAddress, 0));
@@ -381,15 +200,6 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         transfers.add(new Transfer(toAddress, value));
 
         return prepareTransfers(seed, transfers, nextAvailableAddress, wrapper.getBalances());
-    }
-
-    private Single<BalanceWrapper> getBalance(List<AddressPair> addressPairs, String contractAddress) {
-        List<String> contractAddresses = new ArrayList<>();
-        contractAddresses.add(contractAddress);
-
-        return getBalances(addressPairs, contractAddresses)
-
-                .map(list -> list.get(0));
     }
 
     private Single<GetTransactionsToApproveResponse> storeContractTransactions(String seed, String fromAddress,
@@ -410,22 +220,16 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                 .map(hash -> new GetTransactionsToApproveResponse(hash, hash));
     }
 
-    private Single<TransferResult> transfer(String seed, List<AddressPair> addressPairs, String toAddress,
-            String contractAddress, long value) {
-        String nextAvailableAddress = addressPairs.get(addressPairs.size() - 1).getAddress();
+    private Single<TransferResult> transfer(String seed, BalanceWrapper wrapper, AddressPair remainderAddressPair,
+            String toAddress, String contractAddress, long value) {
+        return Single
 
-        return checkTransactions(addressPairs)
-
-                .map(check -> {
-                    if (check) {
-                        if (value == 0 || !GITIUM_ADDRESS.equals(contractAddress)) {
-                            return prepareEmptyTransfer(seed, nextAvailableAddress);
-                        } else {
-                            BalanceWrapper wrapper = getBalance(addressPairs, contractAddress).blockingGet();
-                            return prepareGitiumTransfer(seed, toAddress, value, nextAvailableAddress, wrapper);
-                        }
+                .fromCallable(() -> {
+                    if (value == 0 || !GITIUM_ADDRESS.equals(contractAddress)) {
+                        return prepareEmptyTransfer(seed, remainderAddressPair.getAddress());
                     } else {
-                        throw GitiumException.hasTransactionNotVerified();
+                        return prepareGitiumTransfer(seed, toAddress, value, remainderAddressPair.getAddress(),
+                                wrapper);
                     }
                 })
 
@@ -439,8 +243,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                 if (GITIUM_ADDRESS.equals(contractAddress)) {
                                     return approve;
                                 } else {
-                                    BalanceWrapper wrapper = getBalance(addressPairs, contractAddress).blockingGet();
-                                    return storeContractTransactions(seed, nextAvailableAddress, toAddress,
+                                    return storeContractTransactions(seed, remainderAddressPair.getAddress(), toAddress,
                                             approve.getTrunkTransaction(), approve.getBranchTransaction(), value,
                                             wrapper).blockingGet();
                                 }
@@ -477,11 +280,15 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                 address = transactions.get(1).getAddress();
                             }
 
-                            for (AddressPair pair : addressPairs) {
-                                if (pair.getAddress().equals(address)) {
-                                    TransferResult result = new TransferResult(pair, hash);
+                            for (Balance balance : wrapper.getBalances()) {
+                                if (balance.getAddress().equals(address)) {
+                                    TransferResult result = new TransferResult(balance.getAddressPair(), hash);
                                     return result;
                                 }
+                            }
+                            if (remainderAddressPair.getAddress().equals(address)) {
+                                TransferResult result = new TransferResult(remainderAddressPair, hash);
+                                return result;
                             }
                         }
                         throw GitiumException.invalidAttachedTrytes();
@@ -576,27 +383,84 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
 
     @Override
     public Single<AddressPair> getFirstAddress(String seed) {
-        return Single.fromCallable(() -> generateAddress(seed, 0));
+        return getAddressByIndex(seed, 0);
     }
 
     @Override
     public Single<AddressPair> getNewAddress(String seed) {
-        return getNextAvailableAddress(seed);
+        return getFirstAddress(seed)
+
+                .flatMap(firstAddressPair -> {
+                    GetAccountInfoByFirstAddressRequest request = new GetAccountInfoByFirstAddressRequest(
+                            firstAddressPair.getAddress(), "", 1, 1);
+                    return getAccountInfoByFirstAddress(request)
+
+                            .map(response -> {
+                                if (response.getStatus() == -2) {
+                                    return new AddressPairWrapper(firstAddressPair, false);
+                                } else if (response.getStatus() == 1) {
+                                    GetAccountInfoByFirstAddressResponse result = response.getData();
+                                    if (result.isTransaction()) {// 如果最后保存的地址有交易，返回第一个未保存的地址(最后保存的地址的下一个)，并标记为未保存
+                                        return new AddressPairWrapper(generateAddress(seed, result.getEndIndex() + 1),
+                                                false);
+                                    } else {// 如果最后保存的地址没有交易，返回最后保存的地址，并标记为已保存
+                                        return new AddressPairWrapper(generateAddress(seed, result.getEndIndex()),
+                                                true);
+                                    }
+                                } else {
+                                    throw new Exception("Get address info failed");
+                                }
+                            })
+
+                            .map(wrapper -> {
+                                if (wrapper.hasSaved()) {
+                                    return wrapper.getAddressPair();
+                                } else {
+                                    AddressPair toSave = wrapper.getAddressPair();
+                                    while (true) {
+                                        if (!saveAddress(seed, firstAddressPair.getAddress(), toSave.getAddress(),
+                                                toSave.getIndex()).blockingGet()) {
+                                            return toSave;
+                                        }
+                                        toSave = generateAddress(seed, toSave.getIndex() + 1);
+                                    }
+                                }
+                            });
+                });
     }
 
     @Override
     public Single<List<AddressPair>> getAddresses(String seed) {
-        return generateNewAddresses(seed);
-    }
+        return getNewAddress(seed)
 
-    @Override
-    public Single<List<BalanceWrapper>> getBalances(String seed, List<String> contractAddresses) {
-        return generateNewAddresses(seed).flatMap(addressPairs -> getBalances(addressPairs, contractAddresses));
-    }
+                .map(newAddressPair -> {
+                    String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
 
-    @Override
-    public Single<BalanceWrapper> getBalance(String seed, String contractAddress) {
-        return generateNewAddresses(seed).flatMap(addressPairs -> getBalance(addressPairs, contractAddress));
+                    int savedIndex = 0;
+                    List<AddressPair> result = new ArrayList<>();
+
+                    while (savedIndex <= newAddressPair.getIndex()) {
+                        if (addressDelegate != null && addressDelegate.getAddress(seed, savedIndex) != null) {
+                            result.add(new AddressPair(addressDelegate.getAddress(seed, savedIndex), savedIndex));
+                            savedIndex++;
+                        } else {
+                            GetAccountInfoByFirstAddressRequest request = new GetAccountInfoByFirstAddressRequest(
+                                    firstAddress, "", 1000, savedIndex / 1000 + 1);
+                            List<AddressInfo> list = getAccountInfoByFirstAddress(request).blockingGet().getData()
+                                    .getAddresses();
+                            for (AddressInfo info : list) {
+                                AddressPair pair = new AddressPair(info.getAddress(), info.getIndex());
+                                if (addressDelegate != null) {
+                                    addressDelegate.setAddress(seed, pair.getAddress(), pair.getIndex());
+                                }
+                                result.add(pair);
+                                savedIndex = pair.getIndex();
+                            }
+                            savedIndex++;
+                        }
+                    }
+                    return result;
+                });
     }
 
     @Override
@@ -607,24 +471,75 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                     if (value <= 0) {
                         throw GitiumException.invalidTransferValue();
                     }
-                    return true;
-                })
+                    String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
+                    GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, contractAddress)
+                            .blockingGet();
+                    if (data.getUnverifiedTransaction() > 0) {
+                        throw GitiumException.hasTransactionNotVerified();
+                    }
 
-                .flatMap(r -> generateNewAddresses(seed))
+                    final AddressPair remainderAddressPair;
+                    if (data.getNotUsedAddress() != null) {
+                        remainderAddressPair = new AddressPair(data.getNotUsedAddress().getAddress(),
+                                data.getNotUsedAddress().getIndex());
+                    } else {
+                        remainderAddressPair = getNewAddress(seed).blockingGet();
+                    }
 
-                .flatMap(addressPairs -> transfer(seed, addressPairs, toAddress, contractAddress, value));
+                    boolean hasFrozenAddress = false;
+                    long totalValue = 0L;
+                    BalanceWrapper wrapper = new BalanceWrapper(contractAddress);
+                    for (AddressInfo info : data.getAddresses()) {
+                        if (info.isFrozen()) {
+                            hasFrozenAddress = true;
+                        } else {
+                            if (totalValue < value) {
+                                Balance balance = new Balance(new AddressPair(info.getAddress(), info.getIndex()),
+                                        info.getBalance());
+                                wrapper.addBalance(balance);
+                            }
+                        }
+                        totalValue += info.getBalance();
+                    }
+
+                    if (totalValue < value) {
+                        throw GitiumException.notEnoughBalance();
+                    }
+                    if (wrapper.getTotalBalance() < value && hasFrozenAddress) {
+                        throw GitiumException.someAddressHasBeenFrozen();
+                    }
+
+                    return transfer(seed, wrapper, remainderAddressPair, toAddress, contractAddress, value)
+                            .blockingGet();
+                });
     }
 
     @Override
     public Single<TransferResult> emptyTransfer(String seed) {
-        return generateNewAddresses(seed)
+        return Single
 
-                .flatMap(addressPairs -> transfer(seed, addressPairs, null, GITIUM_ADDRESS, 0));
+                .fromCallable(() -> {
+                    String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
+                    GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, GITIUM_ADDRESS)
+                            .blockingGet();
+                    if (data.getUnverifiedTransaction() > 0) {
+                        throw GitiumException.hasTransactionNotVerified();
+                    }
+                    final AddressPair remainderAddressPair;
+                    if (data.getNotUsedAddress() != null) {
+                        remainderAddressPair = new AddressPair(data.getNotUsedAddress().getAddress(),
+                                data.getNotUsedAddress().getIndex());
+                    } else {
+                        remainderAddressPair = getNewAddress(seed).blockingGet();
+                    }
+
+                    return transfer(seed, null, remainderAddressPair, null, GITIUM_ADDRESS, 0).blockingGet();
+                });
     }
 
     @Override
     public Single<List<GitiumTransaction>> getTransactions(String seed, List<String> contracts) {
-        return generateNewAddresses(seed)
+        return getAddresses(seed)
 
                 .flatMap(addressPairs -> getTransactions(contracts, addressPairs));
     }
@@ -668,7 +583,13 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
     public Single<List<AddressPair>> lockAddresses(String seed, int lockCount) {
         return Single
 
-                .fromCallable(() -> generateAddresses(seed, Range.between(0, lockCount - 1)))
+                .fromCallable(() -> {
+                    List<AddressPair> addresses = new ArrayList<>();
+                    for (int i = 0; i < 10; i++) {
+                        addresses.add(generateAddress(seed, i));
+                    }
+                    return addresses;
+                })
 
                 .map(pairs -> {
                     for (int i = pairs.size() - 1; i >= 0; i--) {
@@ -694,8 +615,27 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                 });
     }
 
+    @Override
+    public Single<Map<String, Long>> getTotalValueOfContracts(String seed, String... contractAddresses) {
+        return getFirstAddress(seed)
+
+                .map(AddressPair::getAddress)
+
+                .flatMap(firstAddress -> {
+                    return queryTotalAssets(firstAddress, contractAddresses);
+                });
+    }
+
+    @Override
+    public Single<Long> getTotalValueOfContract(String seed, String contractAddress) {
+        return getTotalValueOfContracts(seed, contractAddress)
+
+                .map(data -> data.get(contractAddress));
+    }
+
     public static class Builder {
 
+        private String centralizationUrl;
         private String url;
         private boolean debug;
         private AddressDelegate addressDelegate;
@@ -703,12 +643,17 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         private int depth = 9;
         private int minWeightMagnitude = 14;
 
-        public Builder(String url) {
+        public Builder(String centralizationUrl, String url) {
+            this.centralizationUrl = centralizationUrl;
             this.url = url;
         }
 
         public String getUrl() {
             return url;
+        }
+
+        public String getCentralizationUrl() {
+            return centralizationUrl;
         }
 
         public Builder setDebug(boolean debug) {

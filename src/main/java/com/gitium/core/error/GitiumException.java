@@ -65,4 +65,8 @@ public class GitiumException extends Exception {
     public static GitiumException invalidAttachedTrytes() {
         return newGitiumException(GitiumError.INVALID_ATTACHED_TRYTES);
     }
+
+    public static GitiumException someAddressHasBeenFrozen() {
+        return newGitiumException(GitiumError.SOME_ADDRESS_HAS_BEEN_FROZEN);
+    }
 }

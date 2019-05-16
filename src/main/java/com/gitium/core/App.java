@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.gitium.core.error.GitiumException;
-import com.gitium.core.model.BalanceWrapper;
 
 import io.reactivex.functions.Consumer;
 
@@ -26,7 +25,7 @@ public class App {
         String command = args[0];
 
         try {
-            gitiumAPI = new GitiumAPI.Builder("http://180.210.204.240").setDebug(true).build();
+            gitiumAPI = new GitiumAPI.Builder("http://test.gitium.io", "http://180.210.204.240").setDebug(true).build();
             seed = SeedCreator.newSeed("mengchao1", "mengchao1");
 
             gitiumAPI.getContractList().blockingGet();
@@ -35,14 +34,14 @@ public class App {
             case "getNodeInfo":
                 getNodeInfo();
                 break;
+            case "getNewAddress":
+                getNewAddress();
+                break;
             case "getAddresses":
                 getAddresses();
                 break;
             case "sendTransfer":
                 sendTransfer(args[1], args[2], Integer.parseInt(args[3]));
-                break;
-            case "getBalances":
-                getBalances();
                 break;
             case "getTransactions":
                 getTransactions();
@@ -52,6 +51,9 @@ public class App {
                 break;
             case "lockAddresses":
                 lockAddresses();
+                break;
+            case "getTotalValueOfContracts":
+                getTotalValueOfContracts();
                 break;
             default:
                 break;
@@ -72,6 +74,24 @@ public class App {
 
                         (result) -> {
                             MyLog.debug("success");
+                        },
+
+                        onError
+
+                );
+    }
+
+    public static void getNewAddress() {
+        gitiumAPI
+
+                .getNewAddress(seed)
+
+                .toObservable()
+
+                .blockingSubscribe(
+
+                        (result) -> {
+                            MyLog.debug("address:" + result.getAddress() + "|index:" + result.getIndex());
                         },
 
                         onError
@@ -108,29 +128,6 @@ public class App {
 
                         (result) -> {
                             MyLog.debug(result.getAddress());
-                        },
-
-                        onError
-
-                );
-    }
-
-    public static void getBalances() {
-        List<String> contractAddresses = new ArrayList<>();
-        contractAddresses.add(IGitiumApi.GITIUM_ADDRESS);
-        contractAddresses.add("9INALUWVYILLSEXQCH9CTLIBZMM9NNP9FHKIDTTUHYGW9DZM9XNESEGSBUEUNZAGRSXSODP9FYPHLEBEV");
-        gitiumAPI
-
-                .getBalances(seed, contractAddresses)
-
-                .toObservable()
-
-                .blockingSubscribe(
-
-                        (result) -> {
-                            for (BalanceWrapper wrapper : result) {
-                                MyLog.debug(wrapper.getContractAddress() + ":" + wrapper.getTotalBalance());
-                            }
                         },
 
                         onError
@@ -191,5 +188,24 @@ public class App {
                         },
 
                         onError);
+    }
+
+    public static void getTotalValueOfContracts() {
+        gitiumAPI
+
+                .getTotalValueOfContracts(seed, IGitiumApi.GITIUM_ADDRESS,
+                        "9INALUWVYILLSEXQCH9CTLIBZMM9NNP9FHKIDTTUHYGW9DZM9XNESEGSBUEUNZAGRSXSODP9FYPHLEBEV")
+
+                .toObservable()
+
+                .blockingSubscribe(
+
+                        (result) -> {
+                            MyLog.debug(result.keySet().size() + "");
+                        },
+
+                        onError
+
+                );
     }
 }

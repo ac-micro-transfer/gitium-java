@@ -4,7 +4,6 @@ import java.util.List;
 import java.util.Map;
 
 import com.gitium.core.dto.response.GetNodeInfoResponse;
-import com.gitium.core.model.BalanceWrapper;
 import com.gitium.core.model.GitiumContract;
 import com.gitium.core.model.GitiumTransaction;
 import com.gitium.core.model.QueryTransaction;
@@ -58,26 +57,6 @@ public interface IGitiumApi {
      * @return address pair list
      */
     Single<List<AddressPair>> getAddresses(String seed);
-
-    /**
-     * Get balanceWrapper list of contracts
-     * 
-     * @param seed              user's seed
-     * @param contractAddresses contract address list
-     * @return balanceWrapper list
-     */
-    Single<List<BalanceWrapper>>
-
-            getBalances(String seed, List<String> contractAddresses);
-
-    /**
-     * Get balanceWrapper of contract
-     * 
-     * @param seed            user's seed
-     * @param contractAddress contract address
-     * @return balanceWrapper
-     */
-    Single<BalanceWrapper> getBalance(String seed, String contractAddress);
 
     /**
      * Send transfer
@@ -147,4 +126,8 @@ public interface IGitiumApi {
      * @return addresses locked
      */
     Single<List<AddressPair>> lockAddresses(String seed, int lockCount);
+
+    Single<Map<String, Long>> getTotalValueOfContracts(String seed, String... contractAddresses);
+
+    Single<Long> getTotalValueOfContract(String seed, String contractAddress);
 }

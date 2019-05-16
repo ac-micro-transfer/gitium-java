@@ -4,6 +4,8 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.List;
 
+import com.gitium.core.utils.Checksum;
+
 import org.apache.commons.lang3.time.DateFormatUtils;
 
 public class GitiumTransaction implements Serializable {
@@ -72,6 +74,22 @@ public class GitiumTransaction implements Serializable {
 
     public String getFormatedValue() {
         return BigDecimal.valueOf(value, contract.getDecimals()).toPlainString();
+    }
+
+    public String getFromAddressWithChecksum() {
+        try {
+            return Checksum.addChecksum(fromAddress);
+        } catch (Exception e) {
+        }
+        return "";
+    }
+
+    public String getToAddressWithChecksum() {
+        try {
+            return Checksum.addChecksum(toAddress);
+        } catch (Exception e) {
+        }
+        return "";
     }
 
 }

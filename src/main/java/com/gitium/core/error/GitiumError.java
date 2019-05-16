@@ -23,7 +23,9 @@ public enum GitiumError {
 
     INVALID_TRYTES("Invalid trytes provided."),
 
-    INVALID_ATTACHED_TRYTES("Invalid attached trytes provided.");
+    INVALID_ATTACHED_TRYTES("Invalid attached trytes provided."),
+
+    SOME_ADDRESS_HAS_BEEN_FROZEN("Some address has been frozen.");
 
     private String message;
 

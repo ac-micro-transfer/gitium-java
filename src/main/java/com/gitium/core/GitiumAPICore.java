@@ -1,5 +1,6 @@
 package com.gitium.core;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -7,11 +8,18 @@ import java.util.concurrent.TimeUnit;
 import com.gitium.core.dto.request.AttachToTangleRequest;
 import com.gitium.core.dto.request.BroadcastTransactionsRequest;
 import com.gitium.core.dto.request.FindTransactionsRequest;
+import com.gitium.core.dto.request.GetAccountAddressBalanceRequest;
+import com.gitium.core.dto.request.GetAccountInfoByFirstAddressRequest;
 import com.gitium.core.dto.request.GetContractBalancesRequest;
 import com.gitium.core.dto.request.GetContractTransactionsRequest;
 import com.gitium.core.dto.request.GetGitiumBalancesRequest;
 import com.gitium.core.dto.request.GetGitiumTransactionsRequest;
+import com.gitium.core.dto.request.QueryTotalAssetsRequest;
+import com.gitium.core.dto.request.SaveAddressRequest;
 import com.gitium.core.dto.request.StoreTransactionsRequest;
+import com.gitium.core.dto.response.GetAccountAddressBalanceResponse;
+import com.gitium.core.dto.response.GetAccountInfoByFirstAddressResponse;
+import com.gitium.core.dto.response.StatusResponse;
 import com.gitium.core.error.GitiumException;
 import com.gitium.core.model.Balance;
 import com.gitium.core.model.BalanceWrapper;
@@ -22,6 +30,8 @@ import com.gitium.core.utils.Mapper;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.LongSerializationPolicy;
+
+import org.apache.commons.lang3.ArrayUtils;
 
 import io.reactivex.Single;
 import okhttp3.OkHttpClient;
@@ -42,7 +52,9 @@ public class GitiumAPICore {
 
     protected Retrofit retrofit;
 
-    protected GitiumAPICore(final String url, final boolean debug) {
+    protected CentralizationApiService centralizationApiService;
+
+    protected GitiumAPICore(final String centralizationUrl, final String nodeUrl, final boolean debug) {
         final OkHttpClient.Builder httpBuilder = new OkHttpClient.Builder();
         httpBuilder.readTimeout(5000, TimeUnit.SECONDS);
         if (debug) {
@@ -63,11 +75,14 @@ public class GitiumAPICore {
 
                 .setLongSerializationPolicy(LongSerializationPolicy.STRING)
 
+                .registerTypeAdapter(GetAccountInfoByFirstAddressResponse.class,
+                        new GetAccountInfoByFirstAddressResponse.Deserilizer())
+
                 .create();
 
         retrofit = new Retrofit.Builder()
 
-                .baseUrl(url)
+                .baseUrl(nodeUrl)
 
                 .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
 
@@ -78,6 +93,20 @@ public class GitiumAPICore {
                 .build();
 
         service = retrofit.create(GitiumAPIService.class);
+
+        centralizationApiService = new Retrofit.Builder()
+
+                .baseUrl(centralizationUrl + "/gitium/")
+
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+
+                .addConverterFactory(GsonConverterFactory.create(gson))
+
+                .client(client)
+
+                .build()
+
+                .create(CentralizationApiService.class);
     }
 
     protected Single<List<GitiumTransaction>> getGitiumTransactions(List<AddressPair> addressPairs) {
@@ -229,6 +258,71 @@ public class GitiumAPICore {
                     }
 
                     return map;
+                });
+    }
+
+    public Single<StatusResponse<GetAccountInfoByFirstAddressResponse>> getAccountInfoByFirstAddress(
+            GetAccountInfoByFirstAddressRequest request) {
+        return centralizationApiService.getAccountInfoByFirstAddress(request);
+    }
+
+    public Single<Boolean> saveAddress(String seed, String firstAddress, String newAddress, int index) {
+        SaveAddressRequest request = new SaveAddressRequest(seed, firstAddress, newAddress, index);
+        return centralizationApiService
+
+                .saveAddress(request)
+
+                .map(response -> {
+                    switch (response.getStatus()) {
+                    case 1:
+                        return true;
+                    case 0:
+                        return false;
+                    default:
+                        throw new Exception("Save address error");
+                    }
+                });
+    }
+
+    public Single<Map<String, Long>> queryTotalAssets(String firstAddress, String... contractAddresses) {
+        final String[] array;
+        if (contractAddresses.length > 0 && contractAddresses[0] == IGitiumApi.GITIUM_ADDRESS) {
+            array = ArrayUtils.remove(contractAddresses, 0);
+        } else {
+            array = contractAddresses;
+        }
+        QueryTotalAssetsRequest request = new QueryTotalAssetsRequest(firstAddress, array);
+        return centralizationApiService
+
+                .queryTotalAssets(request)
+
+                .map(response -> {
+                    if (response.getStatus() == 1) {
+                        return response.getData();
+                    } else {
+                        Map<String, Long> map = new HashMap<>();
+                        map.put(IGitiumApi.GITIUM_ADDRESS, 0L);
+                        for (String item : array) {
+                            map.put(item, 0L);
+                        }
+                        return map;
+                    }
+                });
+    }
+
+    public Single<GetAccountAddressBalanceResponse> getAccountAddressBalance(String firstAddress,
+            String contractAddress) {
+        GetAccountAddressBalanceRequest request = new GetAccountAddressBalanceRequest(firstAddress, contractAddress);
+        return centralizationApiService
+
+                .getAccountAddressBalance(request)
+
+                .map(r -> {
+                    if (r.getStatus() == 1) {
+                        return r.getData();
+                    } else {
+                        throw new Exception("Get account address balance fail!");
+                    }
                 });
     }
 }

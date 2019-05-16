@@ -1,6 +1,7 @@
 /.gradle
 /.settings
-/.vscode
+/.vscode/*
+!/.vscode/launch.json
 /bin
 /build
 .classpath
