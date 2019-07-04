@@ -28,7 +28,9 @@ public enum GitiumAPICommands {
 
     EXCHANGE_RATE("exchangeRate"),
 
-    QUERY_TRANSACTIONS("getTransactionByAddressesAndHash");
+    QUERY_TRANSACTIONS("getTransactionByAddressesAndHash"),
+
+    GET_CONTRACTS_BY_CONTRACT_ADDRESSES("getContractsByContractAddresses");
 
     private String command;
 

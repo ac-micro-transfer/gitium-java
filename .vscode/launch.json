@@ -6,6 +6,14 @@
     "configurations": [
         {
             "type": "java",
+            "name": "GetNodeInfo",
+            "request": "launch",
+            "mainClass": "com.gitium.core.App",
+            "projectName": "gitium-java",
+            "args": "getNodeInfo"
+        },
+        {
+            "type": "java",
             "name": "GetNewAddress",
             "request": "launch",
             "mainClass": "com.gitium.core.App",
@@ -43,6 +51,14 @@
             "mainClass": "com.gitium.core.App",
             "projectName": "gitium-java",
             "args": "sendTransfer FXLMCOOUXQEDUVJCTUXPJGVSFXDFETCIGKL9MRUEZHANHARUECXZZHDUIJDOIANTDNGNDQ9GKPBQEUEAWGHTHPYNKZ 999999999999999999999999999999999999999999999999999999999999999999999999999999999 1"
+        },
+        {
+            "type": "java",
+            "name": "PurchaseContract",
+            "request": "launch",
+            "mainClass": "com.gitium.core.App",
+            "projectName": "gitium-java",
+            "args": "purchaseContract FUBYLSLVBHCWGEVFFFDSXNLKRKDZIFDCFRFOHIIBFSWUDYIEXEJSLFOFGTHI9XDQEKMKEGBBWCMKXAWUX 1"
         },
     ]
 }

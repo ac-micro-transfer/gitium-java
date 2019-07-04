@@ -18,14 +18,15 @@ public class App {
         }
     };
 
-    private static IGitiumApi gitiumAPI;
+    private static GitiumAPI gitiumAPI;
     private static String seed;
 
     public static void main(String[] args) {
         String command = args[0];
 
         try {
-            gitiumAPI = new GitiumAPI.Builder("http://test.gitium.io", "http://180.210.204.240").setDebug(true).build();
+            gitiumAPI = new GitiumAPI.Builder("http://106.15.251.200:8686", "http://106.15.251.200").setDebug(true)
+                    .build();
             seed = SeedCreator.newSeed("mengchao1", "mengchao1");
 
             gitiumAPI.getContractList().blockingGet();
@@ -54,6 +55,9 @@ public class App {
                 break;
             case "getTotalValueOfContracts":
                 getTotalValueOfContracts();
+                break;
+            case "purchaseContract":
+                purchaseContract(args[1], Integer.parseInt(args[2]));
                 break;
             default:
                 break;
@@ -207,5 +211,22 @@ public class App {
                         onError
 
                 );
+    }
+
+    public static void purchaseContract(String contractAddresses, long value) {
+        gitiumAPI
+
+                .purchaseContract(seed, contractAddresses, value, 1).toObservable()
+
+                .blockingSubscribe(
+
+                        (result) -> {
+                            MyLog.debug(result + "");
+                        },
+
+                        onError
+
+                );
+        ;
     }
 }

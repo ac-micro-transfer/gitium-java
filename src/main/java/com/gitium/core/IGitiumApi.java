@@ -18,6 +18,8 @@ public interface IGitiumApi {
 
     String GITIUM_ADDRESS = StringUtils.rightPad("", 81, "9");
 
+    void swicthNode(String nodeUrl);
+
     /**
      * Get info of currenct node.
      * 
@@ -130,4 +132,6 @@ public interface IGitiumApi {
     Single<Map<String, Long>> getTotalValueOfContracts(String seed, String... contractAddresses);
 
     Single<Long> getTotalValueOfContract(String seed, String contractAddress);
+
+    Single<Boolean> purchaseContract(String seed, String contractAddress, long contractValue, long gitValue);
 }

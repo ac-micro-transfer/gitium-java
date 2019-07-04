@@ -69,4 +69,9 @@ public class GitiumException extends Exception {
     public static GitiumException someAddressHasBeenFrozen() {
         return newGitiumException(GitiumError.SOME_ADDRESS_HAS_BEEN_FROZEN);
     }
+
+    @Override
+    public String getMessage() {
+        return error.getMessage();
+    }
 }

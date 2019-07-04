@@ -138,12 +138,13 @@ public class GitiumAPIUtils {
         for (Object obj : objects) {
             if (obj instanceof String) {
                 String text = (String) obj;
+                if (!"".equals(text)) {
+                    text = text.toUpperCase();
+                    text = StringUtils.replaceChars(text, "012345678", "ABCDEFGHI");
+                    text = StringUtils.rightPad(text, 81, '9');
 
-                text = text.toUpperCase();
-                text = StringUtils.replaceChars(text, "012345678", "ABCDEFGHI");
-                text = StringUtils.rightPad(text, 81, '9');
-
-                builder.append(text);
+                    builder.append(text);
+                }
             } else if (obj instanceof Long) {
                 builder.append(Converter.trytes(Converter.trits((long) obj, 243)));
             } else {

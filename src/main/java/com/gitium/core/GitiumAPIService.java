@@ -6,6 +6,7 @@ import com.gitium.core.dto.request.ExchangeRateRequest;
 import com.gitium.core.dto.request.FindTransactionsRequest;
 import com.gitium.core.dto.request.GetContractBalancesRequest;
 import com.gitium.core.dto.request.GetContractTransactionsRequest;
+import com.gitium.core.dto.request.GetContractsByAddressesRequest;
 import com.gitium.core.dto.request.GetGitiumBalancesRequest;
 import com.gitium.core.dto.request.GetGitiumTransactionsRequest;
 import com.gitium.core.dto.request.GetTransactionsToApproveRequest;
@@ -19,6 +20,7 @@ import com.gitium.core.dto.response.FindTransactionResponse;
 import com.gitium.core.dto.response.GetContractBalancesResponse;
 import com.gitium.core.dto.response.GetContractListResponse;
 import com.gitium.core.dto.response.GetContractTransactionsResponse;
+import com.gitium.core.dto.response.GetContractsByAddressesResponse;
 import com.gitium.core.dto.response.GetGitiumBalancesResponse;
 import com.gitium.core.dto.response.GetGitiumTransactionsResponse;
 import com.gitium.core.dto.response.GetNodeInfoResponse;
@@ -74,4 +76,7 @@ public interface GitiumAPIService {
 
     @POST("./")
     Single<QueryTransactionsResonse> queryTransactions(@Body QueryTransactionsRequest request);
+
+    @POST("./")
+    Single<GetContractsByAddressesResponse> getContractsByAddresses(@Body GetContractsByAddressesRequest request);
 }

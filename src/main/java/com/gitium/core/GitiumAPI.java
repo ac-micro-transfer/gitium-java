@@ -60,6 +60,11 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         customCurl = SpongeFactory.create(SpongeFactory.Mode.KERL);
     }
 
+    @Override
+    public void swicthNode(String nodeUrl) {
+        changeNode(nodeUrl);
+    }
+
     private AddressPair generateAddress(String seed, int index) throws Exception {
         String address;
 
@@ -211,8 +216,8 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         if (Checksum.isAddressWithChecksum(target)) {
             target = Checksum.removeChecksum(target);
         }
-        StoreContractTransactionsRequest request = new StoreContractTransactionsRequest(seed, security, fromAddress,
-                target, trunk, branch, value, wrapper);
+        StoreContractTransactionsRequest request = StoreContractTransactionsRequest.createTransferRequest(seed,
+                security, fromAddress, target, trunk, branch, value, wrapper);
         return service.storeContractTransactions(request)
 
                 .map(response -> response.getTransactionHash())
@@ -250,50 +255,58 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                             })
 
                             .flatMap(approve -> {
+                                final String contractHash;
+                                if (!GITIUM_ADDRESS.equals(contractAddress)) {
+                                    contractHash = approve.getTrunkTransaction();
+                                } else {
+                                    contractHash = "";
+                                }
                                 return attachToTangle(approve.getTrunkTransaction(), approve.getBranchTransaction(),
-                                        minWeightMagnitude, trytes);
+                                        minWeightMagnitude, trytes)
+                                                .flatMap(trytes1 -> storeAndBroadcast(trytes1).map(r -> trytes1))
+
+                                                .map(trytes2 -> {
+                                                    final List<Transaction> transactions = new ArrayList<>();
+                                                    for (String tryte : trytes2) {
+                                                        transactions.add(new Transaction(tryte));
+                                                    }
+                                                    return transactions;
+                                                }).flatMap(transactions -> {
+                                                    List<String> bundles = new ArrayList<>();
+                                                    bundles.add(transactions.get(0).getBundle());
+
+                                                    return findTransactionsByBundles(bundles).map((hashes) -> {
+                                                        boolean successful = hashes.size() > 0;
+                                                        if (successful) {
+                                                            String hash = transactions.get(0).getHash();
+                                                            String address;
+                                                            if (transactions.size() == 1) {
+                                                                address = transactions.get(0).getAddress();
+                                                            } else {
+                                                                address = transactions.get(1).getAddress();
+                                                            }
+
+                                                            for (Balance balance : wrapper.getBalances()) {
+                                                                if (balance.getAddress().equals(address)) {
+                                                                    TransferResult result = new TransferResult(
+                                                                            balance.getAddressPair(), hash,
+                                                                            contractHash);
+                                                                    return result;
+                                                                }
+                                                            }
+                                                            if (remainderAddressPair.getAddress().equals(address)) {
+                                                                TransferResult result = new TransferResult(
+                                                                        remainderAddressPair, hash, contractHash);
+                                                                return result;
+                                                            }
+                                                        }
+                                                        throw GitiumException.invalidAttachedTrytes();
+                                                    });
+                                                });
                             });
                 })
 
-                .flatMap(trytes -> storeAndBroadcast(trytes).map(r -> trytes))
-
-                .map(trytes -> {
-                    final List<Transaction> transactions = new ArrayList<>();
-                    for (String tryte : trytes) {
-                        transactions.add(new Transaction(tryte));
-                    }
-                    return transactions;
-                })
-
-                .flatMap(transactions -> {
-                    List<String> bundles = new ArrayList<>();
-                    bundles.add(transactions.get(0).getBundle());
-
-                    return findTransactionsByBundles(bundles).map((hashes) -> {
-                        boolean successful = hashes.size() > 0;
-                        if (successful) {
-                            String hash = transactions.get(0).getHash();
-                            String address;
-                            if (transactions.size() == 1) {
-                                address = transactions.get(0).getAddress();
-                            } else {
-                                address = transactions.get(1).getAddress();
-                            }
-
-                            for (Balance balance : wrapper.getBalances()) {
-                                if (balance.getAddress().equals(address)) {
-                                    TransferResult result = new TransferResult(balance.getAddressPair(), hash);
-                                    return result;
-                                }
-                            }
-                            if (remainderAddressPair.getAddress().equals(address)) {
-                                TransferResult result = new TransferResult(remainderAddressPair, hash);
-                                return result;
-                            }
-                        }
-                        throw GitiumException.invalidAttachedTrytes();
-                    });
-                });
+        ;
     }
 
     @SuppressWarnings("unchecked")
@@ -488,16 +501,18 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
 
                     boolean hasFrozenAddress = false;
                     long totalValue = 0L;
+                    long canUseValue = 0L;
                     BalanceWrapper wrapper = new BalanceWrapper(contractAddress);
                     for (AddressInfo info : data.getAddresses()) {
                         if (info.isFrozen()) {
                             hasFrozenAddress = true;
                         } else {
-                            if (totalValue < value) {
+                            if (canUseValue < value) {
                                 Balance balance = new Balance(new AddressPair(info.getAddress(), info.getIndex()),
                                         info.getBalance());
                                 wrapper.addBalance(balance);
                             }
+                            canUseValue += info.getBalance();
                         }
                         totalValue += info.getBalance();
                     }
@@ -506,9 +521,15 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         throw GitiumException.notEnoughBalance();
                     }
                     if (wrapper.getTotalBalance() < value && hasFrozenAddress) {
-                        throw GitiumException.someAddressHasBeenFrozen();
+                        String text = "some";
+                        for (GitiumContract contract : mContracts) {
+                            if (contractAddress.equals(contract.getAddress())) {
+                                int decimals = contract.getDecimals();
+                                text = GitiumAPIUtils.formatContractValue(wrapper.getTotalBalance(), decimals);
+                            }
+                        }
+                        throw new Exception("Some address has been frozen, only " + text + " can be used!");
                     }
-
                     return transfer(seed, wrapper, remainderAddressPair, toAddress, contractAddress, value)
                             .blockingGet();
                 });
@@ -631,6 +652,100 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
         return getTotalValueOfContracts(seed, contractAddress)
 
                 .map(data -> data.get(contractAddress));
+    }
+
+    @Override
+    public Single<Boolean> purchaseContract(String seed, String contractAddress, long contractValue, long gitValue) {
+        return getContractDetail(contractAddress)
+
+                .map(contract -> {
+                    /************************ Check owner balace **************************/
+                    String owner = contract.getOwner();
+                    if (contract.getType() != 0) {
+                        long contractLimit = getContractPurchaseBalance(contractAddress, owner).blockingGet();
+                        if (contractValue > contractLimit) {
+                            throw new Exception("Contract owner's balance not enough!");
+                        }
+                    }
+                    /************************ Check git balace **************************/
+                    if (gitValue <= 0) {
+                        throw GitiumException.invalidTransferValue();
+                    }
+                    String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
+                    GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, GITIUM_ADDRESS)
+                            .blockingGet();
+                    if (data.getUnverifiedTransaction() > 0) {
+                        throw GitiumException.hasTransactionNotVerified();
+                    }
+
+                    final AddressPair remainderAddressPair;
+                    if (data.getNotUsedAddress() != null) {
+                        remainderAddressPair = new AddressPair(data.getNotUsedAddress().getAddress(),
+                                data.getNotUsedAddress().getIndex());
+                    } else {
+                        remainderAddressPair = getNewAddress(seed).blockingGet();
+                    }
+
+                    boolean hasFrozenAddress = false;
+                    long totalValue = 0L;
+                    BalanceWrapper wrapper = new BalanceWrapper(GITIUM_ADDRESS);
+                    for (AddressInfo info : data.getAddresses()) {
+                        if (info.isFrozen()) {
+                            hasFrozenAddress = true;
+                        } else {
+                            if (totalValue < gitValue) {
+                                Balance balance = new Balance(new AddressPair(info.getAddress(), info.getIndex()),
+                                        info.getBalance());
+                                wrapper.addBalance(balance);
+                            }
+                        }
+                        totalValue += info.getBalance();
+                    }
+
+                    if (totalValue < gitValue) {
+                        throw GitiumException.notEnoughBalance();
+                    }
+                    if (wrapper.getTotalBalance() < gitValue && hasFrozenAddress) {
+                        throw GitiumException.someAddressHasBeenFrozen();
+                    }
+
+                    /************************ storeContract transactions **************************/
+                    String fromAddress = owner;
+                    String toAddress = remainderAddressPair.getAddress();
+                    GetTransactionsToApproveResponse approve = service
+                            .getTransactionsToApprove(new GetTransactionsToApproveRequest(depth)).blockingGet();
+
+                    StoreContractTransactionsRequest request = StoreContractTransactionsRequest
+
+                            .createPurchaseRequest(
+
+                                    seed, 2,
+
+                                    fromAddress, toAddress,
+
+                                    approve.getTrunkTransaction(), approve.getBranchTransaction(),
+
+                                    contractValue, contractAddress
+
+                            );
+                    String transactionHash = service.storeContractTransactions(request).blockingGet()
+                            .getTransactionHash();
+
+                    /************************ transfer Git **************************/
+                    List<String> trytes = prepareGitiumTransfer(seed, owner, gitValue,
+                            remainderAddressPair.getAddress(), wrapper);
+                    List<String> attachedTrytes = attachToTangle(transactionHash, transactionHash, minWeightMagnitude,
+                            trytes).blockingGet();
+                    storeAndBroadcast(attachedTrytes).blockingGet();
+                    final List<Transaction> transactions = new ArrayList<>();
+                    for (String tryte : attachedTrytes) {
+                        transactions.add(new Transaction(tryte));
+                    }
+                    List<String> bundles = new ArrayList<>();
+                    bundles.add(transactions.get(0).getBundle());
+                    boolean success = findTransactionsByBundles(bundles).blockingGet().size() > 0;
+                    return success;
+                });
     }
 
     public static class Builder {

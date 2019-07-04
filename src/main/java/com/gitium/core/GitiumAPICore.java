@@ -1,5 +1,6 @@
 package com.gitium.core;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +13,7 @@ import com.gitium.core.dto.request.GetAccountAddressBalanceRequest;
 import com.gitium.core.dto.request.GetAccountInfoByFirstAddressRequest;
 import com.gitium.core.dto.request.GetContractBalancesRequest;
 import com.gitium.core.dto.request.GetContractTransactionsRequest;
+import com.gitium.core.dto.request.GetContractsByAddressesRequest;
 import com.gitium.core.dto.request.GetGitiumBalancesRequest;
 import com.gitium.core.dto.request.GetGitiumTransactionsRequest;
 import com.gitium.core.dto.request.QueryTotalAssetsRequest;
@@ -23,6 +25,7 @@ import com.gitium.core.dto.response.StatusResponse;
 import com.gitium.core.error.GitiumException;
 import com.gitium.core.model.Balance;
 import com.gitium.core.model.BalanceWrapper;
+import com.gitium.core.model.GitiumContract;
 import com.gitium.core.model.GitiumTransaction;
 import com.gitium.core.utils.AddressPair;
 import com.gitium.core.utils.InputValidator;
@@ -54,22 +57,24 @@ public class GitiumAPICore {
 
     protected CentralizationApiService centralizationApiService;
 
+    protected String replaceNode;
+
     protected GitiumAPICore(final String centralizationUrl, final String nodeUrl, final boolean debug) {
-        final OkHttpClient.Builder httpBuilder = new OkHttpClient.Builder();
-        httpBuilder.readTimeout(5000, TimeUnit.SECONDS);
-        if (debug) {
-            HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-            logging.setLevel(HttpLoggingInterceptor.Level.BODY);
-            httpBuilder.addInterceptor(logging);
-        }
-        httpBuilder.addInterceptor(chain -> {
-            final Request newRequest = chain.request().newBuilder()
-                    .addHeader(X_GITIUM_API_VERSION_HEADER_NAME, X_GITIUM_API_VERSION_HEADER_VALUE)
-                    .addHeader(CONTENT_TYPE_HEADER_NAME, CONTENT_TYPE_HEADER_VALUE).build();
-            return chain.proceed(newRequest);
-        });
-        httpBuilder.connectTimeout(5000, TimeUnit.SECONDS);
-        final OkHttpClient client = httpBuilder.build();
+
+        final OkHttpClient nodeclient = createOkHttpClientBuilder(debug)
+
+                .addInterceptor(chain -> {
+                    if (replaceNode == null) {
+                        return chain.proceed(chain.request());
+                    } else {
+                        final Request newRequest = chain.request().newBuilder()
+                                .url(replaceNode)
+                                .build();
+                        return chain.proceed(newRequest);
+                    }
+                })
+
+                .build();
 
         Gson gson = new GsonBuilder()
 
@@ -88,7 +93,7 @@ public class GitiumAPICore {
 
                 .addConverterFactory(GsonConverterFactory.create(gson))
 
-                .client(client)
+                .client(nodeclient)
 
                 .build();
 
@@ -102,11 +107,33 @@ public class GitiumAPICore {
 
                 .addConverterFactory(GsonConverterFactory.create(gson))
 
-                .client(client)
+                .client(createOkHttpClientBuilder(debug).build())
 
                 .build()
 
                 .create(CentralizationApiService.class);
+    }
+
+    private OkHttpClient.Builder createOkHttpClientBuilder(boolean debug) {
+        final OkHttpClient.Builder httpBuilder = new OkHttpClient.Builder();
+        httpBuilder.readTimeout(5000, TimeUnit.SECONDS);
+        if (debug) {
+            HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
+            logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+            httpBuilder.addInterceptor(logging);
+        }
+        httpBuilder.addInterceptor(chain -> {
+            final Request newRequest = chain.request().newBuilder()
+                    .addHeader(X_GITIUM_API_VERSION_HEADER_NAME, X_GITIUM_API_VERSION_HEADER_VALUE)
+                    .addHeader(CONTENT_TYPE_HEADER_NAME, CONTENT_TYPE_HEADER_VALUE).build();
+            return chain.proceed(newRequest);
+        });
+        httpBuilder.connectTimeout(5000, TimeUnit.SECONDS);
+        return httpBuilder;
+    }
+
+    protected void changeNode(String nodeUrl) {
+        replaceNode = nodeUrl;
     }
 
     protected Single<List<GitiumTransaction>> getGitiumTransactions(List<AddressPair> addressPairs) {
@@ -237,6 +264,20 @@ public class GitiumAPICore {
                 .map(map -> Mapper.contractsBalancesMapToBalanceWrappers(contractAddresses, addressPairs, map));
     }
 
+    protected Single<Long> getContractPurchaseBalance(String contractAddress, String ownerAddress) {
+        List<String> contractList = new ArrayList<>(1);
+        contractList.add(contractAddress);
+        List<String> addressList = new ArrayList<>(1);
+        addressList.add(ownerAddress);
+
+        GetContractBalancesRequest request = new GetContractBalancesRequest(contractList, addressList);
+        return service
+
+                .getContractBalances(request)
+
+                .map(resp -> resp.getBalances().get(contractAddress).get(ownerAddress));
+    }
+
     protected Single<Map<String, List<GitiumTransaction>>> getContractTransactions(List<String> contracts,
             List<AddressPair> addressPairs) {
         List<String> addresses = Mapper.addressPairsToAddresses(addressPairs);
@@ -322,6 +363,22 @@ public class GitiumAPICore {
                         return r.getData();
                     } else {
                         throw new Exception("Get account address balance fail!");
+                    }
+                });
+    }
+
+    protected Single<GitiumContract> getContractDetail(String contractAddress) {
+        List<String> list = new ArrayList<>(1);
+        list.add(contractAddress);
+        return service.getContractsByAddresses(new GetContractsByAddressesRequest(list))
+
+                .map(resp -> resp.getContractList())
+
+                .map(data -> {
+                    if (data.isEmpty()) {
+                        throw new Exception("Get contract detail error!");
+                    } else {
+                        return data.get(0);
                     }
                 });
     }
