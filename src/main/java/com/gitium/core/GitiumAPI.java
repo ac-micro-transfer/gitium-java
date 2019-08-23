@@ -278,6 +278,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                                     return findTransactionsByBundles(bundles).map((hashes) -> {
                                                         boolean successful = hashes.size() > 0;
                                                         if (successful) {
+                                                            String bundle = transactions.get(0).getBundle();
                                                             String hash = transactions.get(0).getHash();
                                                             String address;
                                                             if (transactions.size() == 1) {
@@ -289,14 +290,15 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                                             for (Balance balance : wrapper.getBalances()) {
                                                                 if (balance.getAddress().equals(address)) {
                                                                     TransferResult result = new TransferResult(
-                                                                            balance.getAddressPair(), hash,
+                                                                            balance.getAddressPair(), bundle, hash,
                                                                             contractHash);
                                                                     return result;
                                                                 }
                                                             }
                                                             if (remainderAddressPair.getAddress().equals(address)) {
                                                                 TransferResult result = new TransferResult(
-                                                                        remainderAddressPair, hash, contractHash);
+                                                                        remainderAddressPair, bundle, hash,
+                                                                        contractHash);
                                                                 return result;
                                                             }
                                                         }
