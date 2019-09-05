@@ -487,6 +487,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         throw GitiumException.invalidTransferValue();
                     }
                     String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
+                    getNewAddress(seed).blockingGet();//强制更新地址到最新
                     GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, contractAddress)
                             .blockingGet();
                     if (data.getUnverifiedTransaction() > 0) {
@@ -543,6 +544,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
 
                 .fromCallable(() -> {
                     String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
+                    getNewAddress(seed).blockingGet();//强制更新地址到最新
                     GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, GITIUM_ADDRESS)
                             .blockingGet();
                     if (data.getUnverifiedTransaction() > 0) {
@@ -645,6 +647,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                 .map(AddressPair::getAddress)
 
                 .flatMap(firstAddress -> {
+                    getNewAddress(seed).blockingGet();//强制更新地址到最新
                     return queryTotalAssets(firstAddress, contractAddresses);
                 });
     }
@@ -674,6 +677,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         throw GitiumException.invalidTransferValue();
                     }
                     String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
+                    getNewAddress(seed).blockingGet();//强制更新地址到最新
                     GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, GITIUM_ADDRESS)
                             .blockingGet();
                     if (data.getUnverifiedTransaction() > 0) {
