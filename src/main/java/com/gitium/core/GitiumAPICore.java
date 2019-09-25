@@ -1,6 +1,7 @@
 package com.gitium.core;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,6 +12,7 @@ import com.gitium.core.dto.request.BroadcastTransactionsRequest;
 import com.gitium.core.dto.request.FindTransactionsRequest;
 import com.gitium.core.dto.request.GetAccountAddressBalanceRequest;
 import com.gitium.core.dto.request.GetAccountInfoByFirstAddressRequest;
+import com.gitium.core.dto.request.GetAccountTransactionsRequest;
 import com.gitium.core.dto.request.GetContractBalancesRequest;
 import com.gitium.core.dto.request.GetContractTransactionsRequest;
 import com.gitium.core.dto.request.GetContractsByAddressesRequest;
@@ -23,6 +25,7 @@ import com.gitium.core.dto.response.GetAccountAddressBalanceResponse;
 import com.gitium.core.dto.response.GetAccountInfoByFirstAddressResponse;
 import com.gitium.core.dto.response.StatusResponse;
 import com.gitium.core.error.GitiumException;
+import com.gitium.core.model.AccountTransaction;
 import com.gitium.core.model.Balance;
 import com.gitium.core.model.BalanceWrapper;
 import com.gitium.core.model.GitiumContract;
@@ -67,9 +70,7 @@ public class GitiumAPICore {
                     if (replaceNode == null) {
                         return chain.proceed(chain.request());
                     } else {
-                        final Request newRequest = chain.request().newBuilder()
-                                .url(replaceNode)
-                                .build();
+                        final Request newRequest = chain.request().newBuilder().url(replaceNode).build();
                         return chain.proceed(newRequest);
                     }
                 })
@@ -217,14 +218,20 @@ public class GitiumAPICore {
 
                 .attachToTangle(request)
 
-                .map(response -> response.getTrytes());
+                .map(response -> {
+                    if (response.getTrytes() == null || response.getTrytes().isEmpty()) {
+                        throw GitiumException.invalidAttachedTrytes();
+                    }
+                    return response.getTrytes();
+                });
     }
 
-    protected Single<Boolean> storeAndBroadcast(List<String> trytes) throws GitiumException {
+    protected Single<Boolean> storeAndBroadcast(List<String> trytes, String orderMsg, String msg)
+            throws GitiumException {
         if (!InputValidator.isArrayOfAttachedTrytes(trytes.toArray(new String[trytes.size()]))) {
             throw GitiumException.invalidAttachedTrytes();
         }
-        return service.storeTransactions(new StoreTransactionsRequest(trytes))
+        return service.storeTransactions(new StoreTransactionsRequest(trytes, orderMsg, msg))
 
                 .flatMap(storeResponse -> {
                     BroadcastTransactionsRequest request = new BroadcastTransactionsRequest(trytes);
@@ -381,5 +388,10 @@ public class GitiumAPICore {
                         return data.get(0);
                     }
                 });
+    }
+
+    protected Single<List<AccountTransaction>> getAccountTransactions(GetAccountTransactionsRequest request) {
+        return centralizationApiService.getAccountTransactions(request)
+                .map((resp) -> resp.getStatus() == 1 ? resp.getData().getList() : Collections.emptyList());
     }
 }

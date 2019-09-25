@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.gitium.core.dto.response.GetNodeInfoResponse;
+import com.gitium.core.model.AccountTransaction;
 import com.gitium.core.model.GitiumContract;
 import com.gitium.core.model.GitiumTransaction;
 import com.gitium.core.model.QueryTransaction;
@@ -69,7 +70,22 @@ public interface IGitiumApi {
      * @param value           transfer value
      * @return transfer result
      */
+    @Deprecated
     Single<TransferResult> transfer(String seed, String toAddress, String contractAddress, long value);
+
+    /**
+     * Send transfer
+     * 
+     * @param seed            user's seed
+     * @param toAddress       transfer target address
+     * @param contractAddress transfer contract address
+     * @param value           transfer value
+     * @param orderMsg        business order
+     * @param msg             business remark
+     * @return transfer result
+     */
+    Single<TransferResult> transfer(String seed, String toAddress, String contractAddress, long value, String orderMsg,
+            String msg);
 
     /**
      * Send empty transfer
@@ -134,4 +150,6 @@ public interface IGitiumApi {
     Single<Long> getTotalValueOfContract(String seed, String contractAddress);
 
     Single<Boolean> purchaseContract(String seed, String contractAddress, long contractValue, long gitValue);
+
+    Single<List<AccountTransaction>> getAccountTransactions(String seed, String contractAddress, int pageSize, int currentPage, String outInType, String startTime, String endTime);
 }

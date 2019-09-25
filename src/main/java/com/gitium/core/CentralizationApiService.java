@@ -4,10 +4,12 @@ import java.util.Map;
 
 import com.gitium.core.dto.request.GetAccountAddressBalanceRequest;
 import com.gitium.core.dto.request.GetAccountInfoByFirstAddressRequest;
+import com.gitium.core.dto.request.GetAccountTransactionsRequest;
 import com.gitium.core.dto.request.QueryTotalAssetsRequest;
 import com.gitium.core.dto.request.SaveAddressRequest;
 import com.gitium.core.dto.response.GetAccountAddressBalanceResponse;
 import com.gitium.core.dto.response.GetAccountInfoByFirstAddressResponse;
+import com.gitium.core.dto.response.GetAccountTransactionsResponse;
 import com.gitium.core.dto.response.StatusResponse;
 
 import io.reactivex.Single;
@@ -29,4 +31,7 @@ public interface CentralizationApiService {
     @POST("api/getAccountAddressBalance")
     Single<StatusResponse<GetAccountAddressBalanceResponse>> getAccountAddressBalance(
             @Body GetAccountAddressBalanceRequest request);
+
+    @POST("api/getAccountTransactions")
+    Single<StatusResponse<GetAccountTransactionsResponse>> getAccountTransactions(@Body GetAccountTransactionsRequest request);
 }

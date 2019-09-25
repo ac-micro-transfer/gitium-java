@@ -7,6 +7,7 @@ import java.util.Map;
 
 import com.gitium.core.dto.request.ExchangeRateRequest;
 import com.gitium.core.dto.request.GetAccountInfoByFirstAddressRequest;
+import com.gitium.core.dto.request.GetAccountTransactionsRequest;
 import com.gitium.core.dto.request.GetTransactionsToApproveRequest;
 import com.gitium.core.dto.request.GitiumCommandRequest;
 import com.gitium.core.dto.request.QueryTransactionsRequest;
@@ -16,6 +17,7 @@ import com.gitium.core.dto.response.GetAccountInfoByFirstAddressResponse;
 import com.gitium.core.dto.response.GetNodeInfoResponse;
 import com.gitium.core.dto.response.GetTransactionsToApproveResponse;
 import com.gitium.core.error.GitiumException;
+import com.gitium.core.model.AccountTransaction;
 import com.gitium.core.model.AddressInfo;
 import com.gitium.core.model.AddressPairWrapper;
 import com.gitium.core.model.Balance;
@@ -226,7 +228,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
     }
 
     private Single<TransferResult> transfer(String seed, BalanceWrapper wrapper, AddressPair remainderAddressPair,
-            String toAddress, String contractAddress, long value) {
+            String toAddress, String contractAddress, long value, String orderMsg, String msg) {
         return Single
 
                 .fromCallable(() -> {
@@ -262,8 +264,8 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                     contractHash = "";
                                 }
                                 return attachToTangle(approve.getTrunkTransaction(), approve.getBranchTransaction(),
-                                        minWeightMagnitude, trytes)
-                                                .flatMap(trytes1 -> storeAndBroadcast(trytes1).map(r -> trytes1))
+                                        minWeightMagnitude, trytes).flatMap(
+                                                trytes1 -> storeAndBroadcast(trytes1, orderMsg, msg).map(r -> trytes1))
 
                                                 .map(trytes2 -> {
                                                     final List<Transaction> transactions = new ArrayList<>();
@@ -480,6 +482,12 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
 
     @Override
     public Single<TransferResult> transfer(String seed, String toAddress, String contractAddress, long value) {
+        return transfer(seed, toAddress, contractAddress, value, "", "");
+    }
+
+    @Override
+    public Single<TransferResult> transfer(String seed, String toAddress, String contractAddress, long value,
+            String orderMsg, String msg) {
         return Single
 
                 .fromCallable(() -> {
@@ -487,7 +495,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         throw GitiumException.invalidTransferValue();
                     }
                     String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
-                    getNewAddress(seed).blockingGet();//强制更新地址到最新
+                    getNewAddress(seed).blockingGet();// 强制更新地址到最新
                     GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, contractAddress)
                             .blockingGet();
                     if (data.getUnverifiedTransaction() > 0) {
@@ -533,8 +541,8 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         }
                         throw new Exception("Some address has been frozen, only " + text + " can be used!");
                     }
-                    return transfer(seed, wrapper, remainderAddressPair, toAddress, contractAddress, value)
-                            .blockingGet();
+                    return transfer(seed, wrapper, remainderAddressPair, toAddress, contractAddress, value, orderMsg,
+                            msg).blockingGet();
                 });
     }
 
@@ -544,7 +552,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
 
                 .fromCallable(() -> {
                     String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
-                    getNewAddress(seed).blockingGet();//强制更新地址到最新
+                    getNewAddress(seed).blockingGet();// 强制更新地址到最新
                     GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, GITIUM_ADDRESS)
                             .blockingGet();
                     if (data.getUnverifiedTransaction() > 0) {
@@ -558,7 +566,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         remainderAddressPair = getNewAddress(seed).blockingGet();
                     }
 
-                    return transfer(seed, null, remainderAddressPair, null, GITIUM_ADDRESS, 0).blockingGet();
+                    return transfer(seed, null, remainderAddressPair, null, GITIUM_ADDRESS, 0, "", "").blockingGet();
                 });
     }
 
@@ -629,7 +637,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                     .flatMap(approve -> attachToTangle(approve.getTrunkTransaction(),
                                             approve.getBranchTransaction(), minWeightMagnitude, srcTrytes))
 
-                                    .flatMap(trytes -> storeAndBroadcast(trytes))
+                                    .flatMap(trytes -> storeAndBroadcast(trytes, "", ""))
 
                                     .blockingGet();
                         } else {
@@ -647,7 +655,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                 .map(AddressPair::getAddress)
 
                 .flatMap(firstAddress -> {
-                    getNewAddress(seed).blockingGet();//强制更新地址到最新
+                    getNewAddress(seed).blockingGet();// 强制更新地址到最新
                     return queryTotalAssets(firstAddress, contractAddresses);
                 });
     }
@@ -677,7 +685,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                         throw GitiumException.invalidTransferValue();
                     }
                     String firstAddress = getFirstAddress(seed).blockingGet().getAddress();
-                    getNewAddress(seed).blockingGet();//强制更新地址到最新
+                    getNewAddress(seed).blockingGet();// 强制更新地址到最新
                     GetAccountAddressBalanceResponse data = getAccountAddressBalance(firstAddress, GITIUM_ADDRESS)
                             .blockingGet();
                     if (data.getUnverifiedTransaction() > 0) {
@@ -742,7 +750,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                             remainderAddressPair.getAddress(), wrapper);
                     List<String> attachedTrytes = attachToTangle(transactionHash, transactionHash, minWeightMagnitude,
                             trytes).blockingGet();
-                    storeAndBroadcast(attachedTrytes).blockingGet();
+                    storeAndBroadcast(attachedTrytes, "", "").blockingGet();
                     final List<Transaction> transactions = new ArrayList<>();
                     for (String tryte : attachedTrytes) {
                         transactions.add(new Transaction(tryte));
@@ -751,6 +759,31 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                     bundles.add(transactions.get(0).getBundle());
                     boolean success = findTransactionsByBundles(bundles).blockingGet().size() > 0;
                     return success;
+                });
+    }
+
+    @Override
+    public Single<List<AccountTransaction>> getAccountTransactions(String seed, String contractAddress, int pageSize,
+            int currentPage, String outInType, String startTime, String endTime) {
+        return getFirstAddress(seed)
+
+                .map(AddressPair::getAddress)
+
+                .flatMap((firstAddress) -> {
+                    GetAccountTransactionsRequest request = new GetAccountTransactionsRequest(firstAddress,
+                            contractAddress, pageSize, currentPage, outInType, startTime, endTime);
+                    return getAccountTransactions(request)
+
+                            .map((list) -> {
+                                for (AccountTransaction transaction : list) {
+                                    for (GitiumContract c : mContracts) {
+                                        if (transaction.getContractAddress().equals(c.getAddress())) {
+                                            transaction.setContract(c);
+                                        }
+                                    }
+                                }
+                                return list;
+                            });
                 });
     }
 

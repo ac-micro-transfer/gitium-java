@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.gitium'
-version '1.0.6'
+version '1.0.7'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -29,9 +29,15 @@ repositories {
     jcenter()
 }
 
+tasks.register("sourcesJar", Jar) {
+    from sourceSets.main.allJava
+    classifier "sources"
+}
+
 publishing {
     publications {
         maven(MavenPublication) {
+            artifact sourcesJar
             artifactId 'gitium-java'
             from components.java
         }

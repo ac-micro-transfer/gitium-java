@@ -18,7 +18,7 @@ public class App {
         }
     };
 
-    private static GitiumAPI gitiumAPI;
+    private static IGitiumApi gitiumAPI;
     private static String seed;
 
     public static void main(String[] args) {
@@ -124,7 +124,7 @@ public class App {
     public static void sendTransfer(String toAddress, String contractAddresses, long value) {
         gitiumAPI
 
-                .transfer(seed, toAddress, contractAddresses, value)
+                .transfer(seed, toAddress, contractAddresses, value, "", "")
 
                 .toObservable()
 
@@ -146,7 +146,7 @@ public class App {
 
         gitiumAPI
 
-                .getTransactions(seed, contractAddresses)
+                .getAccountTransactions(seed, "", 1, 1, "", "", "")
 
                 .toObservable()
 
