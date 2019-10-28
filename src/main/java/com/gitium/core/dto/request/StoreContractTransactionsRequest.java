@@ -28,9 +28,12 @@ public class StoreContractTransactionsRequest extends GitiumCommandRequest {
     private String funcName;
     private List<ContractTransfer> oldAddresses;
     private List<String> parameters = Collections.emptyList();
+    private String orderMsg;
+    private String msg;
 
     private StoreContractTransactionsRequest(String funcName, String seed, int security, String fromAddress,
-            String toAddress, String newAddress, String trunk, String branch, long value, BalanceWrapper wrapper) {
+            String toAddress, String newAddress, String trunk, String branch, long value, BalanceWrapper wrapper,
+            String orderMsg, String msg) {
         super(GitiumAPICommands.STORE_CONTRACT_TRANSACTIONS);
         this.funcName = funcName;
         this.fromAddress = fromAddress;
@@ -52,6 +55,9 @@ public class StoreContractTransactionsRequest extends GitiumCommandRequest {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        this.orderMsg = orderMsg;
+        this.msg = msg;
     }
 
     private String generateBundle(List<Balance> balances) {
@@ -65,11 +71,12 @@ public class StoreContractTransactionsRequest extends GitiumCommandRequest {
     }
 
     public static StoreContractTransactionsRequest createTransferRequest(String seed, int security, String fromAddress,
-            String toAddress, String trunk, String branch, long value, BalanceWrapper wrapper) {
+            String toAddress, String trunk, String branch, long value, BalanceWrapper wrapper, String orderMsg,
+            String msg) {
         String funcName = StringUtils.rightPad("transfer", 81, "0");
         String newAddress = fromAddress;
         return new StoreContractTransactionsRequest(funcName, seed, security, fromAddress, toAddress, newAddress, trunk,
-                branch, value, wrapper);
+                branch, value, wrapper, orderMsg, msg);
     }
 
     public static StoreContractTransactionsRequest createPurchaseRequest(String seed, int security, String fromAddress,
@@ -77,6 +84,6 @@ public class StoreContractTransactionsRequest extends GitiumCommandRequest {
         String funcName = StringUtils.rightPad("purchase", 81, "0");
         String newAddress = toAddress;
         return new StoreContractTransactionsRequest(funcName, seed, security, fromAddress, toAddress, newAddress, trunk,
-                branch, value, new BalanceWrapper(contractAddress));
+                branch, value, new BalanceWrapper(contractAddress), null, null);
     }
 }

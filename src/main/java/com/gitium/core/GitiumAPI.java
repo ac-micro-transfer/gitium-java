@@ -210,7 +210,8 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
     }
 
     private Single<GetTransactionsToApproveResponse> storeContractTransactions(String seed, String fromAddress,
-            String toAddress, String trunk, String branch, long value, BalanceWrapper wrapper) throws GitiumException {
+            String toAddress, String trunk, String branch, long value, BalanceWrapper wrapper, String orderMsg,
+            String msg) throws GitiumException {
         if (wrapper.getTotalBalance() < value) {
             throw GitiumException.notEnoughBalance();
         }
@@ -219,7 +220,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
             target = Checksum.removeChecksum(target);
         }
         StoreContractTransactionsRequest request = StoreContractTransactionsRequest.createTransferRequest(seed,
-                security, fromAddress, target, trunk, branch, value, wrapper);
+                security, fromAddress, target, trunk, branch, value, wrapper, orderMsg, msg);
         return service.storeContractTransactions(request)
 
                 .map(response -> response.getTransactionHash())
@@ -252,7 +253,7 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
                                 } else {
                                     return storeContractTransactions(seed, remainderAddressPair.getAddress(), toAddress,
                                             approve.getTrunkTransaction(), approve.getBranchTransaction(), value,
-                                            wrapper).blockingGet();
+                                            wrapper, orderMsg, msg).blockingGet();
                                 }
                             })
 
