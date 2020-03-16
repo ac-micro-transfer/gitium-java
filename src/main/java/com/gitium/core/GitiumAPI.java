@@ -572,6 +572,11 @@ public class GitiumAPI extends GitiumAPICore implements IGitiumApi {
     }
 
     @Override
+    public Single<TransferResult> firstAddressEmptyTransfer(String seed) {
+        return transfer(seed, null, getFirstAddress(seed).blockingGet(), null, GITIUM_ADDRESS, 0, "", "");
+    }
+
+    @Override
     public Single<List<GitiumTransaction>> getTransactions(String seed, List<String> contracts) {
         return getAddresses(seed)
 

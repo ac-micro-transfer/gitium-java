@@ -96,6 +96,14 @@ public interface IGitiumApi {
     Single<TransferResult> emptyTransfer(String seed);
 
     /**
+     * Send empty transfer
+     * 
+     * @param seed user's seed
+     * @return transfer result
+     */
+    Single<TransferResult> firstAddressEmptyTransfer(String seed);
+
+    /**
      * Get user's transactions of contracts
      * 
      * @param seed      user's seed
